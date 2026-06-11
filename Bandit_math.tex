@@ -1,0 +1,68 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{geometry}
+
+\geometry{margin=1in}
+
+\title{K-Arm bandit math}
+
+\begin{document}
+
+\maketitle
+
+
+
+\section{Summary of Epsilon greedy and optimistic values}
+
+We declare an $\epsilon$ of some value for us to explore and choose a random lever to hit. This is further expanded in the optimistic value as we initially set the 
+initial probabilities of our guesses to be very high and as the agent keeps exploring, it will slowly lower down the expected value of each lever to converge to its true value
+
+
+\section{UCB}
+The UCB selection uses the following function
+\begin{equation}
+   A_t = \underset{a}{\arg\max} \left[ Q_t(a) + c \sqrt{\frac{\ln t}{N_t(a)}} \right]
+\end{equation}
+
+to choose deterministically what the lever should be, it gives high value to levers that havent been chosen yet and will give an exponential payout for levers that gives a larger
+reward with fewer turns. Eventually, it will converge to the optimal lever to pull. 
+
+\subsection{Gradient Bandit}
+This is a bit different from the methods learned before. The main difference is that we previously would try to estimate the rewards of the levers, but this method is dictated by a numerical preference $H_t(a)$ given an action $a \in \mathcal{A}$. We then use the method of stochastic gradient ascent to update these preferences. 
+
+We use the Gibbs (softmax) distribution to convert these preferences into a probability distribution to sample from:
+\begin{equation}
+    \pi_t(a) = \frac{e^{H_t(a)}}{\sum_{b=1}^k e^{H_t(b)}}
+\end{equation}
+
+After sampling from this distribution and receiving a reward $R_t$, we update the preferences using an update rule derived from the gradient of the expected reward. The objective is to maximize the expected reward, defined as:
+\begin{equation}
+    \mathbb{E}[R_t] = \sum_{x} \pi_t(x) q_*(x)
+\end{equation}
+
+Taking the gradient with respect to the preference $H_t(a)$, we can introduce a baseline $\bar{R}_t$ (the average of all rewards up to time $t$) because the gradient of the sum of probabilities is zero ($\sum_x \frac{\partial \pi_t(x)}{\partial H_t(a)} = 0$):
+\begin{equation}
+    \frac{\partial \mathbb{E}[R_t]}{\partial H_t(a)} = \sum_{x} (q_*(x) - \bar{R}_t) \frac{\partial \pi_t(x)}{\partial H_t(a)}
+\end{equation}
+
+By multiplying and dividing by $\pi_t(x)$, we convert this sum into an expectation over the action distribution:
+\begin{equation}
+    = \sum_{x} \pi_t(x) (q_*(x) - \bar{R}_t) \frac{\frac{\partial \pi_t(x)}{\partial H_t(a)}}{\pi_t(x)} = \mathbb{E} \left[ (R_t - \bar{R}_t) \frac{\frac{\partial \pi_t(A_t)}{\partial H_t(a)}}{\pi_t(A_t)} \right]
+\end{equation}
+
+Applying the quotient rule to the softmax function yields the derivative: $\frac{\partial \pi_t(x)}{\partial H_t(a)} = \pi_t(x)(\mathbb{I}_{a=x} - \pi_t(a))$, where $\mathbb{I}_{a=x}$ is an indicator function that is $1$ if $a=x$ and $0$ otherwise. Substituting this back into the expectation gives:
+\begin{equation}
+    \frac{\partial \mathbb{E}[R_t]}{\partial H_t(a)} = \mathbb{E} \left[ (R_t - \bar{R}_t) (\mathbb{I}_{a=A_t} - \pi_t(a)) \right]
+\end{equation}
+
+This expectation directly informs the stochastic gradient ascent update. For the chosen lever $A_t$, the update scales by $(1 - \pi_t(A_t))$. If the action was unlikely to be chosen but yields a reward higher than the baseline, its preference increases significantly. For all other non-chosen actions, the preferences scale down to maintain the probability distribution sum of $1$. The final update rules are:
+
+\begin{align}
+    H_{t+1}(A_t) &\doteq H_t(A_t) + \alpha (R_t - \bar{R}_t) (1 - \pi_t(A_t)) \quad &\text{for chosen action } A_t \\
+    H_{t+1}(a) &\doteq H_t(a) - \alpha (R_t - \bar{R}_t) \pi_t(a) \quad &\text{for all } a \neq A_t
+\end{align}
+
+
+\end{document}
